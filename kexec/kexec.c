@@ -1758,6 +1758,7 @@ int main(int argc, char *argv[])
 		}
 		if (!do_kexec_file_syscall)
 			result = k_unload(kexec_flags);
+		arch_do_unload();
 	}
 	if (do_load && (result == 0)) {
 		if (do_kexec_file_syscall) {
