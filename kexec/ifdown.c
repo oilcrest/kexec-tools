@@ -32,8 +32,10 @@ int ifdown(void)
 	int fd, shaper;
 
 	if ((fd = socket(AF_NETLINK, SOCK_DGRAM, 0)) < 0) {
-		fprintf(stderr, "ifdown: ");
-		perror("socket");
+		if (errno != ENOSYS) {
+			fprintf(stderr, "ifdown: ");
+			perror("socket");
+		}
 		goto error;
 	}
 
