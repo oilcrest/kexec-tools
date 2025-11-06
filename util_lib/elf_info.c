@@ -72,6 +72,7 @@ static uint16_t log_offset_len = UINT16_MAX;
 static uint16_t log_offset_text_len = UINT16_MAX;
 
 static uint64_t phys_offset = UINT64_MAX;
+static uint64_t page_offset = UINT64_MAX;
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #define ELFDATANATIVE ELFDATA2LSB
@@ -115,7 +116,26 @@ static uint64_t vaddr_to_offset(uint64_t vaddr)
 			continue;
 		return (vaddr - phdr[i].p_vaddr) + phdr[i].p_offset;
 	}
-	fprintf(stderr, "No program header covering vaddr 0x%llxfound kexec bug?\n",
+
+	/* Direct map fallback */
+	if (page_offset != UINT64_MAX &&
+		phys_offset != UINT64_MAX &&
+		vaddr >= page_offset) {
+
+		uint64_t paddr = 0;
+
+		paddr = vaddr - (page_offset - phys_offset);
+
+		for (i = 0; i < ehdr.e_phnum; i++) {
+			if (phdr[i].p_paddr > paddr)
+				continue;
+			if ((phdr[i].p_paddr + phdr[i].p_memsz) <= paddr)
+				continue;
+			return phdr[i].p_offset + (paddr - phdr[i].p_paddr);
+		}
+	}
+
+	fprintf(stderr, "No program header covering vaddr 0x%llx found kexec bug?\n",
 		(unsigned long long)vaddr);
 	exit(30);
 }
@@ -309,6 +329,20 @@ int get_pt_load(int idx,
 	return 1;
 }
 
+static inline int parse_phys_offset(const char *str, char *pos)
+{
+	char *endp;
+
+	phys_offset = strtoul(pos + strlen(str), &endp, 10);
+	if (strlen(endp) != 0)
+		phys_offset = strtoul(pos + strlen(str), &endp, 16);
+	if ((phys_offset == LONG_MAX) || strlen(endp) != 0) {
+		fprintf(stderr, "Invalid data %s\n", pos);
+		return -1;
+	}
+	return 0;
+}
+
 #define NOT_FOUND_LONG_VALUE		(-1)
 
 void (*arch_scan_vmcoreinfo)(char *pos);
@@ -319,7 +353,7 @@ void scan_vmcoreinfo(char *start, size_t size)
 	char *pos, *eol;
 	char temp_buf[1024];
 	bool last_line = false;
-	char *str, *endp;
+	char *str;
 
 #define SYMBOL(sym) {					\
 	.str = "SYMBOL(" #sym  ")=",			\
@@ -543,16 +577,20 @@ void scan_vmcoreinfo(char *start, size_t size)
 		/* Check for PHYS_OFFSET number */
 		str = "NUMBER(PHYS_OFFSET)=";
 		if (memcmp(str, pos, strlen(str)) == 0) {
-			phys_offset = strtoul(pos + strlen(str), &endp,
-							10);
-			if (strlen(endp) != 0)
-				phys_offset = strtoul(pos + strlen(str), &endp, 16);
-			if ((phys_offset == LONG_MAX) || strlen(endp) != 0) {
-				fprintf(stderr, "Invalid data %s\n",
-					pos);
+			if (parse_phys_offset(str, pos) != 0)
 				break;
-			}
 		}
+
+		/* Check for PHYS_OFFSET number on some arch it called phys_ram_base*/
+		str = "NUMBER(phys_ram_base)=";
+		if (memcmp(str, pos, strlen(str)) == 0) {
+			if (parse_phys_offset(str, pos) != 0)
+				break;
+		}
+
+		str = "NUMBER(PAGE_OFFSET)=";
+		if (memcmp(str, pos, strlen(str)) == 0)
+			page_offset = strtoull(pos + strlen(str), NULL, 16);
 
 		if (arch_scan_vmcoreinfo != NULL)
 			(*arch_scan_vmcoreinfo)(pos);
