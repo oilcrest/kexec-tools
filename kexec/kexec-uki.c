@@ -71,11 +71,11 @@ int uki_image_probe(const char *file_buf, off_t buf_sz)
 		if (!strcmp(sect_hdr->name, UKI_LINUX_SECTION)) {
 			/* data_addr is relative to the whole file */
 			linux_src = (char *)file_buf + sect_hdr->data_addr;
-			linux_sz = sect_hdr->raw_data_size;
+			linux_sz = sect_hdr->virtual_size;
 
 		} else if (!strcmp(sect_hdr->name, UKI_INITRD_SECTION)) {
 			create_tmpfd(FILENAME_UKI_INITRD, (char *)file_buf + sect_hdr->data_addr,
-					sect_hdr->raw_data_size, &implicit_initrd_fd);
+					sect_hdr->virtual_size, &implicit_initrd_fd);
 		}
 		sect_hdr++;
 	}

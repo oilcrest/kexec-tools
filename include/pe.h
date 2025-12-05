@@ -116,7 +116,7 @@ struct section_header {
 	char name[8];			/* name or "/12\0" string tbl offset */
 	uint32_t virtual_size;		/* size of loaded section in ram */
 	uint32_t virtual_address;	/* relative virtual address */
-	uint32_t raw_data_size;		/* size of the section */
+	uint32_t raw_data_size;		/* size of the section, padding to be multiple of FileAlignment */
 	uint32_t data_addr;		/* file pointer to first page of sec */
 	uint32_t relocs;		/* file pointer to relocation entries */
 	uint32_t line_numbers;		/* line numbers! */
